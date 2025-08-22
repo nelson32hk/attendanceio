@@ -53,9 +53,9 @@
     <div class="mb-6">
       <h2 class="text-lg font-semibold mb-2">Select Project</h2>
       <select id="projectSelect" class="w-full p-2 border rounded" onchange="updateProject()">
-        <option value="Project A">Project A</option>
-        <option value="Project B">Project B</option>
-        <option value="Project C">Project C</option>
+        <option value="HKEX">HKEX</option>
+        <option value="BEA">BEA</option>
+        <option value="Others">Others</option>
       </select>
     </div>
     
@@ -64,9 +64,9 @@
       <h2 class="text-lg font-semibold mb-2">Select Engineer</h2>
       <select id="engineerSelect" class="w-full p-2 border rounded" onchange="updateUI()">
         <option value="">Select an Engineer</option>
-        <option value="John Doe">John Doe</option>
-        <option value="Jane Smith">Jane Smith</option>
-        <option value="Alex Wong">Alex Wong</option>
+        <option value="Anson Lau">Anson Lau</option>
+        <option value="Nelson Sin">Nelson Sin</option>
+        <option value="Jocelyn Choo">Jocelyn Choo</option>
       </select>
     </div>
     
@@ -103,11 +103,11 @@
   <script>
     // Data structure to store sessions and OT hours by project
     let projects = {
-      "Project A": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
-      "Project B": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
-      "Project C": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null }
+      "HKEX": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
+      "BEA": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
+      "Others": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null }
     };
-    let currentProject = "Project A";
+    let currentProject = "HKEX";
     let currentEngineer = "";
 
     function updateProject() {
