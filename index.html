@@ -1,0 +1,204 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engineer Overtime Attendance Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
+    <h1 class="text-2xl font-bold text-center mb-4">Engineer OT Attendance Portal</h1>
+    
+    <!-- Project Selection -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">Select Project</h2>
+      <select id="projectSelect" class="w-full p-2 border rounded" onchange="updateProject()">
+        <option value="Project A">Project A</option>
+        <option value="Project B">Project B</option>
+        <option value="Project C">Project C</option>
+      </select>
+    </div>
+    
+    <!-- Clock In/Out Section -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">Clock In/Out</h2>
+      <div class="flex space-x-4">
+        <button id="clockInBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" onclick="clockIn()">Clock In</button>
+        <button id="clockOutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" onclick="showTaskInput()" disabled>Clock Out</button>
+      </div>
+      <div id="taskInputSection" class="mt-4 hidden">
+        <label for="taskInput" class="block text-sm font-medium text-gray-700">Task Details</label>
+        <input id="taskInput" type="text" class="w-full p-2 border rounded" placeholder="Enter task details" maxlength="100">
+        <button id="submitTaskBtn" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" onclick="clockOut()">Submit & Clock Out</button>
+      </div>
+      <p id="status" class="mt-2 text-gray-600">Status: Not clocked in</p>
+    </div>
+    
+    <!-- Attendance History -->
+    <div class="mb-6">
+      <h2 class="text-lg font-semibold mb-2">Attendance History</h2>
+      <div id="history" class="border p-4 rounded max-h-48 overflow-y-auto">
+        <p class="text-gray-500">No records yet.</p>
+      </div>
+    </div>
+    
+    <!-- Overtime Summary -->
+    <div>
+      <h2 class="text-lg font-semibold mb-2">Overtime Summary</h2>
+      <p id="otSummary" class="text-gray-600">Total OT Hours: 0</p>
+    </div>
+  </div>
+
+  <script>
+    // Data structure to store records and OT hours by project
+    let projects = {
+      "Project A": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
+      "Project B": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
+      "Project C": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null }
+    };
+    let currentProject = "Project A";
+
+    function updateProject() {
+      currentProject = document.getElementById('projectSelect').value;
+      document.getElementById('taskInputSection').classList.add('hidden');
+      updateUI();
+    }
+
+    function clockIn() {
+      if (!projects[currentProject].isClockedIn) {
+        projects[currentProject].isClockedIn = true;
+        projects[currentProject].clockInTime = new Date();
+        document.getElementById('clockInBtn').disabled = true;
+        document.getElementById('clockOutBtn').disabled = false;
+        document.getElementById('status').textContent = `Status: Clocked in at ${projects[currentProject].clockInTime.toLocaleString()} (Project: ${currentProject})`;
+        updateHistory({ timestamp: `Clocked in at ${projects[currentProject].clockInTime.toLocaleString()}`, task: "" });
+      }
+    }
+
+    function showTaskInput() {
+      if (projects[currentProject].isClockedIn) {
+        document.getElementById('taskInputSection').classList.remove('hidden');
+        document.getElementById('taskInput').focus();
+      }
+    }
+
+    function clockOut() {
+      if (projects[currentProject].isClockedIn) {
+        const clockOutTime = new Date();
+        const hoursWorked = (clockOutTime - projects[currentProject].clockInTime) / (1000 * 60 * 60); // Convert ms to hours
+        let otHours = hoursWorked > 8 ? hoursWorked - 8 : 0; // OT for hours > 8
+        const task = document.getElementById('taskInput').value.trim() || "No task details provided";
+
+        projects[currentProject].totalOTHours += otHours;
+        projects[currentProject].isClockedIn = false;
+        document.getElementById('clockInBtn').disabled = false;
+        document.getElementById('clockOutBtn').disabled = true;
+        document.getElementById('taskInputSection').classList.add('hidden');
+        document.getElementById('taskInput').value = "";
+        document.getElementById('status').textContent = `Status: Clocked out at ${clockOutTime.toLocaleString()} (Project: ${currentProject})`;
+        document.getElementById('otSummary').textContent = `Total OT Hours: ${projects[currentProject].totalOTHours.toFixed(2)}`;
+        updateHistory({ timestamp: `Clocked out at ${clockOutTime.toLocaleString()} (OT: ${otHours.toFixed(2)} hrs)`, task });
+      }
+    }
+
+    function updateHistory(record) {
+      projects[currentProject].records.push(record);
+      updateUI();
+    }
+
+    function updateUI() {
+      const historyDiv = document.getElementById('history');
+      const records = projects[currentProject].records;
+      if (records.length > 0) {
+        historyDiv.innerHTML = `
+          <table class="w-full text-sm text-gray-700">
+            <thead>
+              <tr class="border-b">
+                <th class="text-left p-2">Timestamp</th>
+                <th class="text-left p-2">Task Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${records.map(r => `
+                <tr>
+                  <td class="p-2">${r.timestamp}</td>
+                  <td class="p-2">${r.task}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } else {
+        historyDiv.innerHTML = '<p class="text-gray-500">No records yet.</p>';
+      }
+      document.getElementById('otSummary').textContent = `Total OT Hours: ${projects[currentProject].totalOTHours.toFixed(2)}`;
+      document.getElementById('status').textContent = projects[currentProject].isClockedIn 
+        ? `Status: Clocked in at ${projects[currentProject].clockInTime.toLocaleString()} (Project: ${currentProject})`
+        : `Status: Not clocked in (Project: ${currentProject})`;
+      document.getElementById('clockInBtn').disabled = projects[currentProject].isClockedIn;
+      document.getElementById('clockOutBtn').disabled = !projects[currentProject].isClockedIn;
+    }
+
+    // Simulate loading sample data for demonstration
+    function loadSampleData() {
+      projects["Project A"].records = [
+        { timestamp: "Clocked in at 8/22/2025, 9:00 AM", task: "" },
+        { timestamp: "Clocked out at 8/22/2025, 6:00 PM (OT: 1.00 hrs)", task: "Completed circuit design review" }
+      ];
+      projects["Project A"].totalOTHours = 1.0;
+      projects["Project B"].records = [
+        { timestamp: "Clocked in at 8/21/2025, 8:00 AM", task: "" },
+        { timestamp: "Clocked out at 8/21/2025, 5:00 PM (OT: 0.00 hrs)", task: "Prepared project documentation" }
+      ];
+      updateUI();
+    }
+
+    // Initialize
+    window.onload = () => {
+      loadSampleData();
+      document.getElementById('projectSelect').value = currentProject;
+      updateUI();
+    };
+  </script>
+</body>
+</html>
