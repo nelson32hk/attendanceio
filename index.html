@@ -53,9 +53,9 @@
     <div class="mb-6">
       <h2 class="text-lg font-semibold mb-2">Select Project</h2>
       <select id="projectSelect" class="w-full p-2 border rounded" onchange="updateProject()">
-        <option value="Project A">HKEX</option>
-        <option value="Project B">BEA</option>
-        <option value="Project C">Others</option>
+        <option value="HKEX">HKEX</option>
+        <option value="BEA">BEA</option>
+        <option value="Others">Others</option>
       </select>
     </div>
     
@@ -92,9 +92,9 @@
   <script>
     // Data structure to store records and OT hours by project
     let projects = {
-      "Project A": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
-      "Project B": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
-      "Project C": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null }
+      "HKEX": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
+      "BEA": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null },
+      "Others": { records: [], totalOTHours: 0, isClockedIn: false, clockInTime: null }
     };
     let currentProject = "Project A";
 
