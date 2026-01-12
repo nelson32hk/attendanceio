@@ -42,32 +42,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Engineer Overtime Attendance Portal</title>
+  <title>Engineer Remote/Onsite Attendance Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
   <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
-    <h1 class="text-2xl font-bold text-center mb-4">Engineer OT Attendance Portal</h1>
+    <h1 class="text-2xl font-bold text-center mb-4">Engineer Remote/Onsite Attendance Portal</h1>
     
-    <!-- Project Selection -->
+    <!-- Project Input -->
     <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Select Project</h2>
-      <select id="projectSelect" class="w-full p-2 border rounded" onchange="updateProject()">
-        <option value="HKEX">HKEX</option>
-        <option value="BEA">BEA</option>
-        <option value="Others">Others</option>
-      </select>
+      <h2 class="text-lg font-semibold mb-2">Project Name (HKIX, HKEX, etc.)</h2>
+      <input id="projectInput" type="text" class="w-full p-2 border rounded" placeholder="Enter Project Name (HKIX, HKEX, etc.)" oninput="updateProject()">
     </div>
     
-    <!-- Engineer Selection -->
+    <!-- Engineer Input -->
     <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Select Engineer</h2>
-      <select id="engineerSelect" class="w-full p-2 border rounded" onchange="updateUI()">
-        <option value="">Select an Engineer</option>
-        <option value="Anson Lau">Anson Lau</option>
-        <option value="Nelson Sin">Nelson Sin</option>
-        <option value="Jocelyn Choo">Jocelyn Choo</option>
-      </select>
+      <h2 class="text-lg font-semibold mb-2">Engineer Name (Input Nickname)</h2>
+      <input id="engineerInput" type="text" class="w-full p-2 border rounded" placeholder="Enter Engineer Name (Nickname)" oninput="updateUI()">
     </div>
     
     <!-- Clock In/Out Section -->
@@ -75,11 +67,17 @@
       <h2 class="text-lg font-semibold mb-2">Clock In/Out</h2>
       <div class="flex space-x-4">
         <button id="clockInBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" onclick="clockIn()" disabled>Clock In</button>
-        <button id="clockOutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" onclick="showTaskInput()" disabled>Clock Out</button>
+        <button id="clockOutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" onclick="showTaskSelect()" disabled>Clock Out</button>
       </div>
-      <div id="taskInputSection" class="mt-4 hidden">
-        <label for="taskInput" class="block text-sm font-medium text-gray-700">Task Details</label>
-        <input id="taskInput" type="text" class="w-full p-2 border rounded" placeholder="Enter task details" maxlength="100">
+      <div id="taskSelectSection" class="mt-4 hidden">
+        <label for="taskSelect" class="block text-sm font-medium text-gray-700">Task detail</label>
+        <select id="taskSelect" class="w-full p-2 border rounded">
+          <option value="Security patch update">1. Security patch update</option>
+          <option value="Technical support and troubleshooting">2. Technical support and troubleshooting</option>
+          <option value="Preventive maintenance service">3. Preventive maintenance service</option>
+          <option value="Routine support">4. Routine support</option>
+          <option value="Hardware decommission service">5. Hardware decommission service</option>
+        </select>
         <button id="submitTaskBtn" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" onclick="clockOut()">Submit & Clock Out</button>
       </div>
       <p id="status" class="mt-2 text-gray-600">Status: Not clocked in</p>
@@ -91,6 +89,7 @@
       <div id="history" class="border p-4 rounded max-h-48 overflow-y-auto">
         <p class="text-gray-500">No records yet.</p>
       </div>
+      <button id="exportBtn" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 mt-4">Export to Excel</button>
     </div>
     
     <!-- Overtime Summary -->
@@ -101,78 +100,89 @@
   </div>
 
   <script>
-    // Data structure to store sessions and OT hours by project
-    let projects = {
-      "HKEX": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
-      "BEA": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null },
-      "Others": { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null }
-    };
-    let currentProject = "HKEX";
+    // Data structure to store sessions and OT hours by project (dynamic projects)
+    let projects = {};
+    let currentProject = "";
     let currentEngineer = "";
 
+    function getOrCreateProject(projectName) {
+      if (!projects[projectName]) {
+        projects[projectName] = { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null };
+      }
+      return projects[projectName];
+    }
+
     function updateProject() {
-      currentProject = document.getElementById('projectSelect').value;
-      document.getElementById('taskInputSection').classList.add('hidden');
+      currentProject = document.getElementById('projectInput').value.trim();
+      if (currentProject) {
+        getOrCreateProject(currentProject);
+      }
+      document.getElementById('taskSelectSection').classList.add('hidden');
       updateUI();
     }
 
     function clockIn() {
-      if (!projects[currentProject].isClockedIn && currentEngineer) {
-        projects[currentProject].isClockedIn = true;
-        projects[currentProject].clockInTime = new Date();
-        projects[currentProject].currentEngineer = currentEngineer;
+      if (currentProject && currentEngineer && !getOrCreateProject(currentProject).isClockedIn) {
+        const projectData = getOrCreateProject(currentProject);
+        projectData.isClockedIn = true;
+        projectData.clockInTime = new Date();
+        projectData.currentEngineer = currentEngineer;
         document.getElementById('clockInBtn').disabled = true;
         document.getElementById('clockOutBtn').disabled = false;
-        document.getElementById('status').textContent = `Status: Clocked in at ${projects[currentProject].clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
+        document.getElementById('status').textContent = `Status: Clocked in at ${projectData.clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
       }
     }
 
-    function showTaskInput() {
-      if (projects[currentProject].isClockedIn && currentEngineer) {
-        document.getElementById('taskInputSection').classList.remove('hidden');
-        document.getElementById('taskInput').focus();
+    function showTaskSelect() {
+      if (currentProject && currentEngineer && getOrCreateProject(currentProject).isClockedIn) {
+        document.getElementById('taskSelectSection').classList.remove('hidden');
       }
     }
 
     function clockOut() {
-      if (projects[currentProject].isClockedIn && currentEngineer) {
+      if (currentProject && currentEngineer && getOrCreateProject(currentProject).isClockedIn) {
+        const projectData = getOrCreateProject(currentProject);
         const clockOutTime = new Date();
-        const hoursWorked = (clockOutTime - projects[currentProject].clockInTime) / (1000 * 60 * 60); // Convert ms to hours
+        const hoursWorked = (clockOutTime - projectData.clockInTime) / (1000 * 60 * 60); // Convert ms to hours
         let otHours = hoursWorked > 8 ? hoursWorked - 8 : 0; // OT for hours > 8
-        const task = document.getElementById('taskInput').value.trim() || "No task details provided";
+        const task = document.getElementById('taskSelect').value;
 
         // Create a session record
         const session = {
-          clockInTime: projects[currentProject].clockInTime.toLocaleString(),
+          clockInTime: projectData.clockInTime.toLocaleString(),
           clockOutTime: clockOutTime.toLocaleString(),
           otHours: otHours,
           engineer: currentEngineer,
           task: task
         };
 
-        projects[currentProject].sessions.push(session);
-        projects[currentProject].totalOTHours += otHours;
-        projects[currentProject].isClockedIn = false;
-        projects[currentProject].currentEngineer = null;
-        projects[currentProject].clockInTime = null;
+        projectData.sessions.push(session);
+        projectData.totalOTHours += otHours;
+        projectData.isClockedIn = false;
+        projectData.currentEngineer = null;
+        projectData.clockInTime = null;
 
-        document.getElementById('clockInBtn').disabled = !currentEngineer;
+        document.getElementById('clockInBtn').disabled = !currentEngineer || !currentProject;
         document.getElementById('clockOutBtn').disabled = true;
-        document.getElementById('taskInputSection').classList.add('hidden');
-        document.getElementById('taskInput').value = "";
+        document.getElementById('taskSelectSection').classList.add('hidden');
         document.getElementById('status').textContent = `Status: Clocked out at ${clockOutTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
-        document.getElementById('otSummary').textContent = `Total OT Hours: ${projects[currentProject].totalOTHours.toFixed(2)}`;
+        document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData.totalOTHours.toFixed(2)}`;
         updateUI();
       }
     }
 
     function updateUI() {
-      currentEngineer = document.getElementById('engineerSelect').value;
-      document.getElementById('clockInBtn').disabled = !currentEngineer || projects[currentProject].isClockedIn;
-      document.getElementById('clockOutBtn').disabled = !projects[currentProject].isClockedIn || !currentEngineer;
+      currentProject = document.getElementById('projectInput').value.trim();
+      currentEngineer = document.getElementById('engineerInput').value.trim();
+      const hasProject = !!currentProject;
+      const hasEngineer = !!currentEngineer;
+      const projectData = hasProject ? getOrCreateProject(currentProject) : null;
+
+      document.getElementById('clockInBtn').disabled = !hasProject || !hasEngineer || (projectData && projectData.isClockedIn);
+      document.getElementById('clockOutBtn').disabled = !hasProject || !hasEngineer || !(projectData && projectData.isClockedIn);
 
       const historyDiv = document.getElementById('history');
-      const sessions = projects[currentProject].sessions;
+      const sessions = projectData ? projectData.sessions : [];
       if (sessions.length > 0) {
         historyDiv.innerHTML = `
           <table class="w-full text-sm text-gray-700">
@@ -180,7 +190,7 @@
               <tr class="border-b">
                 <th class="text-left p-2">Attendance History</th>
                 <th class="text-left p-2">Engineer</th>
-                <th class="text-left p-2">Task Details</th>
+                <th class="text-left p-2">Task detail</th>
               </tr>
             </thead>
             <tbody>
@@ -197,42 +207,47 @@
       } else {
         historyDiv.innerHTML = '<p class="text-gray-500">No records yet.</p>';
       }
-      document.getElementById('otSummary').textContent = `Total OT Hours: ${projects[currentProject].totalOTHours.toFixed(2)}`;
-      document.getElementById('status').textContent = projects[currentProject].isClockedIn 
-        ? `Status: Clocked in at ${projects[currentProject].clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${projects[currentProject].currentEngineer})`
-        : `Status: Not clocked in (Project: ${currentProject}${currentEngineer ? `, Engineer: ${currentEngineer}` : ''})`;
+      document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData ? projectData.totalOTHours.toFixed(2) : 0}`;
+      document.getElementById('status').textContent = projectData && projectData.isClockedIn 
+        ? `Status: Clocked in at ${projectData.clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${projectData.currentEngineer})`
+        : `Status: Not clocked in${hasProject ? ` (Project: ${currentProject})` : ''}${hasEngineer ? ` (Engineer: ${currentEngineer})` : ''}`;
     }
 
-    // Simulate loading sample data for demonstration
+    function exportToExcel() {
+      if (!currentProject) {
+        alert('Please enter a project name to export.');
+        return;
+      }
+      const sessions = getOrCreateProject(currentProject).sessions;
+      if (sessions.length === 0) {
+        alert('No records to export.');
+        return;
+      }
+
+      const data = sessions.map(s => ({
+        'Clock In': s.clockInTime,
+        'Clock Out': s.clockOutTime,
+        'OT Hours': s.otHours.toFixed(2),
+        Engineer: s.engineer,
+        'Task detail': s.task
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, currentProject);
+      XLSX.writeFile(wb, `${currentProject}_Attendance.xlsx`);
+    }
+
+    // Simulate loading sample data for demonstration (optional, can remove in production)
     function loadSampleData() {
-      projects["Project A"].sessions = [
-        {
-          clockInTime: "8/22/2025, 9:00 AM",
-          clockOutTime: "8/22/2025, 6:00 PM",
-          otHours: 1.0,
-          engineer: "John Doe",
-          task: "Completed circuit design review"
-        }
-      ];
-      projects["Project A"].totalOTHours = 1.0;
-      projects["Project B"].sessions = [
-        {
-          clockInTime: "8/21/2025, 8:00 AM",
-          clockOutTime: "8/21/2025, 5:00 PM",
-          otHours: 0.0,
-          engineer: "Jane Smith",
-          task: "Prepared project documentation"
-        }
-      ];
-      updateUI();
+      // No sample data loaded by default, as projects are dynamic
     }
 
     // Initialize
     window.onload = () => {
       loadSampleData();
-      document.getElementById('projectSelect').value = currentProject;
-      document.getElementById('engineerSelect').value = "";
       updateUI();
+      document.getElementById('exportBtn').addEventListener('click', exportToExcel);
     };
   </script>
 </body>
