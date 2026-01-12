@@ -42,213 +42,53 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Engineer Remote/Onsite Attendance Portal</title>
+  <title>Login - Engineer Remote/Onsite Attendance Portal</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
-    <h1 class="text-2xl font-bold text-center mb-4">Engineer Remote/Onsite Attendance Portal</h1>
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h1 class="text-2xl font-bold text-center mb-4">Login</h1>
     
-    <!-- Project Input -->
+    <!-- Login Section -->
     <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Project Name (HKIX, HKEX, etc.)</h2>
-      <input id="projectInput" type="text" class="w-full p-2 border rounded" placeholder="Enter Project Name (HKIX, HKEX, etc.)" oninput="updateProject()">
-    </div>
-    
-    <!-- Engineer Input -->
-    <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Engineer Name (Input Nickname)</h2>
-      <input id="engineerInput" type="text" class="w-full p-2 border rounded" placeholder="Enter Engineer Name (Nickname)" oninput="updateUI()">
-    </div>
-    
-    <!-- Clock In/Out Section -->
-    <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Clock In/Out</h2>
-      <div class="flex space-x-4">
-        <button id="clockInBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" onclick="clockIn()" disabled>Clock In</button>
-        <button id="clockOutBtn" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600" onclick="showTaskSelect()" disabled>Clock Out</button>
-      </div>
-      <div id="taskSelectSection" class="mt-4 hidden">
-        <label for="taskSelect" class="block text-sm font-medium text-gray-700">Task detail</label>
-        <select id="taskSelect" class="w-full p-2 border rounded">
-          <option value="Security patch update">1. Security patch update</option>
-          <option value="Technical support and troubleshooting">2. Technical support and troubleshooting</option>
-          <option value="Preventive maintenance service">3. Preventive maintenance service</option>
-          <option value="Routine support">4. Routine support</option>
-          <option value="Hardware decommission service">5. Hardware decommission service</option>
-        </select>
-        <button id="submitTaskBtn" class="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" onclick="clockOut()">Submit & Clock Out</button>
-      </div>
-      <p id="status" class="mt-2 text-gray-600">Status: Not clocked in</p>
-    </div>
-    
-    <!-- Attendance History -->
-    <div class="mb-6">
-      <h2 class="text-lg font-semibold mb-2">Attendance History</h2>
-      <div id="history" class="border p-4 rounded max-h-48 overflow-y-auto">
-        <p class="text-gray-500">No records yet.</p>
-      </div>
-      <button id="exportBtn" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 mt-4">Export to Excel</button>
-    </div>
-    
-    <!-- Overtime Summary -->
-    <div>
-      <h2 class="text-lg font-semibold mb-2">Overtime Summary</h2>
-      <p id="otSummary" class="text-gray-600">Total OT Hours: 0</p>
+      <input id="usernameInput" type="text" class="w-full p-2 border rounded mb-2" placeholder="Username">
+      <input id="passwordInput" type="password" class="w-full p-2 border rounded mb-2" placeholder="Password">
+      <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full" onclick="login()">Login</button>
+      <p id="loginError" class="mt-2 text-red-600 hidden text-center">Invalid credentials</p>
     </div>
   </div>
 
   <script>
-    // Data structure to store sessions and OT hours by project (dynamic projects)
-    let projects = {};
-    let currentProject = "";
-    let currentEngineer = "";
-
-    function getOrCreateProject(projectName) {
-      if (!projects[projectName]) {
-        projects[projectName] = { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null };
-      }
-      return projects[projectName];
-    }
-
-    function updateProject() {
-      currentProject = document.getElementById('projectInput').value.trim();
-      if (currentProject) {
-        getOrCreateProject(currentProject);
-      }
-      document.getElementById('taskSelectSection').classList.add('hidden');
-      updateUI();
-    }
-
-    function clockIn() {
-      if (currentProject && currentEngineer && !getOrCreateProject(currentProject).isClockedIn) {
-        const projectData = getOrCreateProject(currentProject);
-        projectData.isClockedIn = true;
-        projectData.clockInTime = new Date();
-        projectData.currentEngineer = currentEngineer;
-        document.getElementById('clockInBtn').disabled = true;
-        document.getElementById('clockOutBtn').disabled = false;
-        document.getElementById('status').textContent = `Status: Clocked in at ${projectData.clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
-      }
-    }
-
-    function showTaskSelect() {
-      if (currentProject && currentEngineer && getOrCreateProject(currentProject).isClockedIn) {
-        document.getElementById('taskSelectSection').classList.remove('hidden');
-      }
-    }
-
-    function clockOut() {
-      if (currentProject && currentEngineer && getOrCreateProject(currentProject).isClockedIn) {
-        const projectData = getOrCreateProject(currentProject);
-        const clockOutTime = new Date();
-        const hoursWorked = (clockOutTime - projectData.clockInTime) / (1000 * 60 * 60); // Convert ms to hours
-        let otHours = hoursWorked > 8 ? hoursWorked - 8 : 0; // OT for hours > 8
-        const task = document.getElementById('taskSelect').value;
-
-        // Create a session record
-        const session = {
-          clockInTime: projectData.clockInTime.toLocaleString(),
-          clockOutTime: clockOutTime.toLocaleString(),
-          otHours: otHours,
-          engineer: currentEngineer,
-          task: task
-        };
-
-        projectData.sessions.push(session);
-        projectData.totalOTHours += otHours;
-        projectData.isClockedIn = false;
-        projectData.currentEngineer = null;
-        projectData.clockInTime = null;
-
-        document.getElementById('clockInBtn').disabled = !currentEngineer || !currentProject;
-        document.getElementById('clockOutBtn').disabled = true;
-        document.getElementById('taskSelectSection').classList.add('hidden');
-        document.getElementById('status').textContent = `Status: Clocked out at ${clockOutTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
-        document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData.totalOTHours.toFixed(2)}`;
-        updateUI();
-      }
-    }
-
-    function updateUI() {
-      currentProject = document.getElementById('projectInput').value.trim();
-      currentEngineer = document.getElementById('engineerInput').value.trim();
-      const hasProject = !!currentProject;
-      const hasEngineer = !!currentEngineer;
-      const projectData = hasProject ? getOrCreateProject(currentProject) : null;
-
-      document.getElementById('clockInBtn').disabled = !hasProject || !hasEngineer || (projectData && projectData.isClockedIn);
-      document.getElementById('clockOutBtn').disabled = !hasProject || !hasEngineer || !(projectData && projectData.isClockedIn);
-
-      const historyDiv = document.getElementById('history');
-      const sessions = projectData ? projectData.sessions : [];
-      if (sessions.length > 0) {
-        historyDiv.innerHTML = `
-          <table class="w-full text-sm text-gray-700">
-            <thead>
-              <tr class="border-b">
-                <th class="text-left p-2">Attendance History</th>
-                <th class="text-left p-2">Engineer</th>
-                <th class="text-left p-2">Task detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sessions.map(s => `
-                <tr>
-                  <td class="p-2">${s.clockInTime} - ${s.clockOutTime} (OT: ${s.otHours.toFixed(2)} hrs)</td>
-                  <td class="p-2">${s.engineer}</td>
-                  <td class="p-2">${s.task}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
+    // Users stored in localStorage
+    function loadUsers() {
+      const storedUsers = localStorage.getItem('users');
+      if (storedUsers) {
+        return JSON.parse(storedUsers);
       } else {
-        historyDiv.innerHTML = '<p class="text-gray-500">No records yet.</p>';
+        // Default users including the new admin
+        const defaultUsers = {
+          'admin': { password: 'password', role: 'admin' },
+          'nelson': { password: 'password', role: 'admin' },
+          'engineer': { password: 'pass123', role: 'engineer' }
+        };
+        localStorage.setItem('users', JSON.stringify(defaultUsers));
+        return defaultUsers;
       }
-      document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData ? projectData.totalOTHours.toFixed(2) : 0}`;
-      document.getElementById('status').textContent = projectData && projectData.isClockedIn 
-        ? `Status: Clocked in at ${projectData.clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${projectData.currentEngineer})`
-        : `Status: Not clocked in${hasProject ? ` (Project: ${currentProject})` : ''}${hasEngineer ? ` (Engineer: ${currentEngineer})` : ''}`;
     }
 
-    function exportToExcel() {
-      if (!currentProject) {
-        alert('Please enter a project name to export.');
-        return;
+    let users = loadUsers();
+
+    function login() {
+      const username = document.getElementById('usernameInput').value.trim();
+      const password = document.getElementById('passwordInput').value.trim();
+      if (users[username] && users[username].password === password) {
+        const currentUser = { username, role: users[username].role };
+        localStorage.setItem('loggedIn', JSON.stringify(currentUser));
+        window.location.href = 'attendance.html';
+      } else {
+        document.getElementById('loginError').classList.remove('hidden');
       }
-      const sessions = getOrCreateProject(currentProject).sessions;
-      if (sessions.length === 0) {
-        alert('No records to export.');
-        return;
-      }
-
-      const data = sessions.map(s => ({
-        'Clock In': s.clockInTime,
-        'Clock Out': s.clockOutTime,
-        'OT Hours': s.otHours.toFixed(2),
-        Engineer: s.engineer,
-        'Task detail': s.task
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, currentProject);
-      XLSX.writeFile(wb, `${currentProject}_Attendance.xlsx`);
     }
-
-    // Simulate loading sample data for demonstration (optional, can remove in production)
-    function loadSampleData() {
-      // No sample data loaded by default, as projects are dynamic
-    }
-
-    // Initialize
-    window.onload = () => {
-      loadSampleData();
-      updateUI();
-      document.getElementById('exportBtn').addEventListener('click', exportToExcel);
-    };
   </script>
 </body>
 </html>

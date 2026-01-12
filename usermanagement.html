@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Management - Engineer Remote/Onsite Attendance Portal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
+    <h1 class="text-2xl font-bold text-center mb-4">User Management</h1>
+    
+    <!-- Add User -->
+    <div class="mb-4">
+      <input id="newUsername" type="text" class="w-full p-2 border rounded mb-2" placeholder="New Username">
+      <input id="newPassword" type="password" class="w-full p-2 border rounded mb-2" placeholder="New Password">
+      <select id="newRole" class="w-full p-2 border rounded mb-2">
+        <option value="admin">Admin</option>
+        <option value="engineer">Engineer</option>
+      </select>
+      <button class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 w-full" onclick="addUser()">Add User</button>
+    </div>
+    
+    <!-- Current Users -->
+    <h3 class="text-md font-semibold mb-2">Current Users</h3>
+    <div id="userList" class="border p-4 rounded max-h-48 overflow-y-auto"></div>
+    
+    <!-- Buttons -->
+    <div class="flex space-x-4 mt-4">
+      <button class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600" onclick="window.location.href = 'attendance.html'">Back to Attendance</button>
+      <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    function loadUsers() {
+      return JSON.parse(localStorage.getItem('users')) || {};
+    }
+
+    function saveUsers(users) {
+      localStorage.setItem('users', JSON.stringify(users));
+    }
+
+    function checkLogin() {
+      const storedUser = localStorage.getItem('loggedIn');
+      if (!storedUser) {
+        window.location.href = 'index.html';
+        return;
+      }
+      currentUser = JSON.parse(storedUser);
+      if (currentUser.role !== 'admin') {
+        window.location.href = 'attendance.html';
+      }
+      updateUserList();
+    }
+
+    function logout() {
+      localStorage.removeItem('loggedIn');
+      window.location.href = 'index.html';
+    }
+
+    function addUser() {
+      const users = loadUsers();
+      const newUsername = document.getElementById('newUsername').value.trim();
+      const newPassword = document.getElementById('newPassword').value.trim();
+      const newRole = document.getElementById('newRole').value;
+      if (newUsername && newPassword && !users[newUsername]) {
+        users[newUsername] = { password: newPassword, role: newRole };
+        saveUsers(users);
+        updateUserList();
+        document.getElementById('newUsername').value = '';
+        document.getElementById('newPassword').value = '';
+      } else {
+        alert('Invalid username or password, or user already exists.');
+      }
+    }
+
+    function removeUser(username) {
+      if (username !== currentUser.username) {
+        const users = loadUsers();
+        delete users[username];
+        saveUsers(users);
+        updateUserList();
+      } else {
+        alert('Cannot remove your own account.');
+      }
+    }
+
+    function changeUserPassword(username) {
+      const newPassword = prompt(`Enter new password for ${username}:`);
+      if (newPassword && newPassword.trim() !== '') {
+        const users = loadUsers();
+        users[username].password = newPassword.trim();
+        saveUsers(users);
+        alert(`Password for ${username} changed successfully.`);
+      } else {
+        alert('Password change cancelled or empty password.');
+      }
+    }
+
+    function updateUserList() {
+      const users = loadUsers();
+      const userListDiv = document.getElementById('userList');
+      userListDiv.innerHTML = `
+        <table class="w-full text-sm text-gray-700">
+          <thead>
+            <tr class="border-b">
+              <th class="text-left p-2">Username</th>
+              <th class="text-left p-2">Role</th>
+              <th class="text-left p-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.keys(users).map(u => `
+              <tr>
+                <td class="p-2">${u}</td>
+                <td class="p-2">${users[u].role}</td>
+                <td class="p-2">
+                  <button class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" onclick="removeUser('${u}')">Remove</button>
+                  <button class="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600 ml-2" onclick="changeUserPassword('${u}')">Change Password</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    window.onload = () => {
+      checkLogin();
+    };
+  </script>
+</body>
+</html>
