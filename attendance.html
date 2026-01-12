@@ -1,4 +1,43 @@
-<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -53,15 +92,16 @@
       <button id="exportBtn" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 mt-4 hidden">Export to Excel</button>
     </div>
     
-    <!-- Overtime Summary -->
+    <!-- Summaries -->
     <div>
-      <h2 class="text-lg font-semibold mb-2">Overtime Summary</h2>
+      <h2 class="text-lg font-semibold mb-2">Total Working Hours Summary</h2>
+      <p id="workingSummary" class="text-gray-600">Total Working Hours: 0</p>
+      <h2 class="text-lg font-semibold mb-2 mt-4">Overtime Summary</h2>
       <p id="otSummary" class="text-gray-600">Total OT Hours: 0</p>
     </div>
     
     <!-- Buttons -->
     <div class="flex space-x-4 mt-4">
-      <button id="userManagementBtn" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600 hidden" onclick="window.location.href = 'usermanagement.html'">User Management</button>
       <button class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600" onclick="window.location.href = 'changepassword.html'">Change Password</button>
       <button class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" onclick="logout()">Logout</button>
     </div>
@@ -81,7 +121,7 @@
 
     function getOrCreateProject(projectName) {
       if (!projects[projectName]) {
-        projects[projectName] = { sessions: [], totalOTHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null };
+        projects[projectName] = { sessions: [], totalOTHours: 0, totalWorkingHours: 0, isClockedIn: false, clockInTime: null, currentEngineer: null };
       }
       return projects[projectName];
     }
@@ -93,12 +133,11 @@
         return;
       }
       currentUser = JSON.parse(storedUser);
+      if (currentUser.role !== 'admin') {
+        window.location.href = 'attendance.html';
+      }
       if (currentUser.role === 'admin') {
         document.getElementById('exportBtn').classList.remove('hidden');
-        document.getElementById('userManagementBtn').classList.remove('hidden');
-      } else {
-        document.getElementById('exportBtn').classList.add('hidden');
-        document.getElementById('userManagementBtn').classList.add('hidden');
       }
       // Auto-fill engineer name with username
       document.getElementById('engineerInput').value = currentUser.username;
@@ -149,12 +188,14 @@
         const session = {
           clockInTime: projectData.clockInTime.toLocaleString(),
           clockOutTime: clockOutTime.toLocaleString(),
+          workingHours: hoursWorked,
           otHours: otHours,
           engineer: currentEngineer,
           task: task
         };
 
         projectData.sessions.push(session);
+        projectData.totalWorkingHours += hoursWorked;
         projectData.totalOTHours += otHours;
         projectData.isClockedIn = false;
         projectData.currentEngineer = null;
@@ -164,6 +205,7 @@
         document.getElementById('clockOutBtn').disabled = true;
         document.getElementById('taskSelectSection').classList.add('hidden');
         document.getElementById('status').textContent = `Status: Clocked out at ${clockOutTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${currentEngineer})`;
+        document.getElementById('workingSummary').textContent = `Total Working Hours: ${projectData.totalWorkingHours.toFixed(2)}`;
         document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData.totalOTHours.toFixed(2)}`;
         saveProjects();
         updateUI();
@@ -188,6 +230,8 @@
             <thead>
               <tr class="border-b">
                 <th class="text-left p-2">Attendance History</th>
+                <th class="text-left p-2">Working Hours</th>
+                <th class="text-left p-2">Overtime Hours</th>
                 <th class="text-left p-2">Engineer</th>
                 <th class="text-left p-2">Task detail</th>
               </tr>
@@ -195,7 +239,9 @@
             <tbody>
               ${sessions.map(s => `
                 <tr>
-                  <td class="p-2">${s.clockInTime} - ${s.clockOutTime} (OT: ${s.otHours.toFixed(2)} hrs)</td>
+                  <td class="p-2">${s.clockInTime} - ${s.clockOutTime}</td>
+                  <td class="p-2">${s.workingHours.toFixed(2)} hrs</td>
+                  <td class="p-2">${s.otHours.toFixed(2)} hrs</td>
                   <td class="p-2">${s.engineer}</td>
                   <td class="p-2">${s.task}</td>
                 </tr>
@@ -206,6 +252,7 @@
       } else {
         historyDiv.innerHTML = '<p class="text-gray-500">No records yet.</p>';
       }
+      document.getElementById('workingSummary').textContent = `Total Working Hours: ${projectData ? projectData.totalWorkingHours.toFixed(2) : 0}`;
       document.getElementById('otSummary').textContent = `Total OT Hours: ${projectData ? projectData.totalOTHours.toFixed(2) : 0}`;
       document.getElementById('status').textContent = projectData && projectData.isClockedIn 
         ? `Status: Clocked in at ${projectData.clockInTime.toLocaleString()} (Project: ${currentProject}, Engineer: ${projectData.currentEngineer})`
@@ -230,6 +277,7 @@
       const data = sessions.map(s => ({
         'Clock In': s.clockInTime,
         'Clock Out': s.clockOutTime,
+        'Working Hours': s.workingHours.toFixed(2),
         'OT Hours': s.otHours.toFixed(2),
         Engineer: s.engineer,
         'Task detail': s.task
